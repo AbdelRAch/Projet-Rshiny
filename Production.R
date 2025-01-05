@@ -9,7 +9,7 @@ library(hms)
 library(leaflet)
 library(sf)
 
-
+ Prod_enrgies <- readRDS("Prod_enrgies.rds")
 # df <- Prod_enrgies %>%
 #   mutate(
 #     Horodate_clean = sub("\\+.*$", "", Horodate),
@@ -23,8 +23,7 @@ library(sf)
 #   ) %>%
 #   select(c(16:18,2:15))
 
-# Charger les frontières des régions françaises depuis le fichier GeoJSON téléchargé
-# Remarque : Assurez-vous que le fichier "regions.geojson" est dans votre répertoire de travail
+# Charger les frontières des régions françaises depuis le fichier GeoJSON
 regions_geo <- st_read("regions.geojson")  # Si le fichier est dans le même dossier que le script
 regions_geo$code<-as.numeric(regions_geo$code)
 
@@ -56,7 +55,6 @@ ui <- dashboardPage(
                          selected = unique(df$Filière.de.production)[1], 
              )),
       
-      # Sélecteur pour le type de consommation
       column(2,
              selectInput("plage_puissance", "la plage de puissance", 
                          choices = unique(df$Plage.de.puissance.injection), 
@@ -94,7 +92,7 @@ ui <- dashboardPage(
              downloadButton("download_data", "Télécharger les données", 
                             class = "btn-success"), offset = 10)
     ),
-    # Valeurs agrégées
+
     fluidRow(
       valueBoxOutput("total_energie"),
       valueBoxOutput("puissance_moyenne"),
@@ -182,7 +180,6 @@ server <- function(input, output) {
     }
   })
 
-  # Graphique interactif
   output$energy_plot <- renderPlotly({
     data <- filtered_data()
     if (input$choix_pas == "demi_horaire") {
@@ -240,8 +237,6 @@ server <- function(input, output) {
           yaxis = list(title = "Consommation (100 kWh)")
         )
           }
-    
-    # Afficher le graphique
     fig
     
   })
@@ -260,7 +255,6 @@ server <- function(input, output) {
     regions_geo <- regions_geo %>%
       left_join(df_aggregated, by = c("code" = "Code.région"))
     
-    # Créer la carte avec leaflet
     leaflet(data = regions_geo) %>%
       addTiles() %>%
       addPolygons(
@@ -293,7 +287,7 @@ server <- function(input, output) {
         summarise(Total_energie = sum(as.numeric(Total.énergie.injectée..Wh.), na.rm = TRUE))
       regions_geo <- regions_geo %>%
         left_join(df_aggregated, by = c("code" = "Code.région"))
-      # Créer la carte avec leaflet
+    
       leaflet(data = regions_geo) %>%
         addTiles() %>%
         addPolygons(
@@ -330,6 +324,4 @@ server <- function(input, output) {
   )
 }
 
-# Lancer l'application
 shinyApp(ui = ui, server = server)
-
