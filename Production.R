@@ -9,8 +9,8 @@ library(hms)
 library(leaflet)
 library(sf)
 
-
-# df <- Prod_enrgies %>%
+colnames(prod_reg)<-prod_reg[1,]
+# df <- df %>%
 #   mutate(
 #     Horodate_clean = sub("\\+.*$", "", Horodate),
 #     # Extraire la date
