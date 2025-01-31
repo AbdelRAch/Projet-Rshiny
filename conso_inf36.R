@@ -1,24 +1,16 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    https://shiny.posit.co/
-#
-
+# Charger les librairies nécessaires
 library(shiny)
 library(DT)
 library(readxl)
 library(plotly)
 library(shinythemes)
 library(shinyWidgets)
-library(dplyr) 
+library(dplyr)
+library(viridis)
 library(shinydashboard)
 
 # Charger les données
-conso <- read_excel("D:/Nouveau dossier/MASTER 2/RAVANCE/Conso/conso-inf36-region (1).xlsx")
-
+conso <- read_excel("/Users/gertrudenyamassoule/Projet-Rshiny/conso-inf36-region (1).xlsx")
 
 # Interface utilisateur
 ui <- fluidPage(
@@ -27,34 +19,39 @@ ui <- fluidPage(
   
   sidebarLayout(
     sidebarPanel(
-      # Sélection d'une plage d'horodate
+      
       dateRangeInput("Horodate", "Sélectionner une plage de dates :", 
                      start = min(conso$Horodate), 
                      end = max(conso$Horodate)),
       
-      # Sélection d'une région
+      
       selectInput("Région", "Sélectionner une Région :", 
                   choices = unique(conso$Région), 
                   selected = unique(conso$Région)[1]),
       
-      # Sélection dynamique d'un Profil
+      
       uiOutput("Profil"), 
       
-      # Sélection dynamique d'une plage de puissance
+      
       uiOutput("Plage_puissance"),
       
-      # Case à cocher pour choisir le niveau d'agrégation
+     
       checkboxInput("aggregate_daily", "Afficher les données par jour", value = FALSE),
       
-      # Bouton pour télécharger les données affichées
+      
+      selectInput("graph_type", "Choisir le graphique à afficher", 
+                  choices = c("Total énergie soutirée", "Courbe Moyenne"), 
+                  selected = "Total énergie soutirée"),
+      
+      
       downloadButton("download_data", "Télécharger les données")
     ),
     mainPanel(
-      plotlyOutput("plot1"),  # Graphique interactif
+      plotlyOutput("plot1"), 
       fluidRow(
-        valueBoxOutput("total_conso"),       # Consommation totale
-        valueBoxOutput("avg_power"),        # Puissance moyenne
-        valueBoxOutput("max_power_info")    # Puissance max et date/heure associée
+        valueBoxOutput("total_conso"),       
+        valueBoxOutput("avg_power"),        
+        valueBoxOutput("max_power_info")    
       )
     )
   )
@@ -62,7 +59,8 @@ ui <- fluidPage(
 
 # Serveur
 server <- function(input, output, session) {
-  # Mettre à jour le champ Profil en fonction de la Région sélectionnée
+  
+  
   output$Profil <- renderUI({
     req(input$Région)  
     pickerInput(
@@ -78,7 +76,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # Mettre à jour le champ Plage_puissance en fonction de la Région sélectionnée
+  
   output$Plage_puissance <- renderUI({
     req(input$Région)  
     pickerInput(
@@ -94,7 +92,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # Filtrer et agréguer les données en fonction des sélections utilisateur
+ 
   filtered_data <- reactive({
     req(input$Région, input$Profil, input$Plage_puissance, input$Horodate)
     data <- conso %>%
@@ -107,15 +105,17 @@ server <- function(input, output, session) {
       )
     
     if (input$aggregate_daily) {
-      # Agrégation quotidienne
+      
       data <- data %>%
         mutate(Date = as.Date(Horodate)) %>%
         group_by(Date, Région, Profil) %>%
         summarise(`Total énergie soutirée (Wh)` = sum(`Total énergie soutirée (Wh)`, na.rm = TRUE),
                   Max_Power = max(`Total énergie soutirée (Wh)`, na.rm = TRUE),
                   Avg_Power = mean(`Total énergie soutirée (Wh)`, na.rm = TRUE),
-                  Max_Horodate = first(Date), # Utiliser la date pour le pas quotidien
                   .groups = "drop")
+      
+      
+      data$`Courbe Moyenne n°1 (Wh)` <- data$Avg_Power  
     } else {
       # Pas demi-horaire (pas d'agrégation)
       data <- data %>%
@@ -125,35 +125,71 @@ server <- function(input, output, session) {
     data
   })
   
-  # Affichage du graphique interactif
+  # Graphique interactif
   output$plot1 <- renderPlotly({
     data <- filtered_data()
     
-    plot_ly(
-      data,
-      x = if (input$aggregate_daily) ~Date else ~Horodate,  # Axe X : Date ou Horodate
-      y = ~`Total énergie soutirée (Wh)`,  # Axe Y : énergie
-      color = ~Profil,  # Couleur par Profil
-      linetype = ~Région,  # Différencier par Région
-      type = 'scatter',
-      mode = 'lines+markers',
-      hoverinfo = "text",
-      text = ~paste(
-        "Région :", Région,
-        "<br>Profil :", Profil,
-        "<br>Énergie :", round(`Total énergie soutirée (Wh)`, 2),
-        if (input$aggregate_daily) paste("<br>Date :", Date) else paste("<br>Heure :", Horodate)
-      )
-    ) %>%
+    if (nrow(data) == 0) {
+      return(NULL)
+    }
+    
+    
+    data$Profile_PowerRange <- paste(data$Profil, data$`Plage de puissance souscrite`, sep = " - ")
+    
+    
+    unique_combinations <- unique(data$Profile_PowerRange)
+    colors <- viridis::viridis(length(unique_combinations))
+    names(colors) <- unique_combinations
+    
+    
+    p <- plot_ly()
+    
+    
+    if (input$graph_type == "Total énergie soutirée") {
+      p <- p %>%
+        add_trace(
+          data = data,
+          x = if (input$aggregate_daily) ~Date else ~Horodate,
+          y = ~`Total énergie soutirée (Wh)`,
+          color = ~Profile_PowerRange,
+          colors = colors,
+          type = 'scatter',
+          mode = 'lines+markers',
+          hoverinfo = "text",
+          text = ~paste(
+            "Région :", Région,
+            "<br>Profil :", Profil,
+            "<br>Énergie :", round(`Total énergie soutirée (Wh)`, 2),
+            if (input$aggregate_daily) paste("<br>Date :", Date) else paste("<br>Heure :", Horodate)
+          )
+        )
+    } else if (input$graph_type == "Courbe Moyenne") {
+      p <- p %>%
+        add_trace(
+          data = data,
+          x = if (input$aggregate_daily) ~Date else ~Horodate,
+          y = ~`Courbe Moyenne n°1 (Wh)`,
+          color = ~Profile_PowerRange,
+          colors = colors,
+          type = 'scatter',
+          mode = 'lines',
+          line = list(dash = "dot", width = 2),
+          name = "Courbe Moyenne"
+        )
+    }
+    
+    p <- p %>%
       layout(
         title = if (input$aggregate_daily) "Consommation quotidienne" else "Consommation demi-horaire",
         xaxis = list(title = if (input$aggregate_daily) "Date" else "Heure"),
-        yaxis = list(title = "Total énergie soutirée (Wh)"),
+        yaxis = list(title = "Énergie (Wh)"),
         legend = list(title = list(text = "<b>Profil & Région</b>"))
       )
+    
+    p
   })
   
-  # Affichage de la consommation totale dans une valueBox
+
   output$total_conso <- renderValueBox({
     total <- sum(filtered_data()$`Total énergie soutirée (Wh)`, na.rm = TRUE)
     valueBox(
@@ -164,7 +200,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # Affichage de la puissance moyenne dans une valueBox
+  
   output$avg_power <- renderValueBox({
     avg_power <- mean(filtered_data()$`Total énergie soutirée (Wh)`, na.rm = TRUE)
     valueBox(
@@ -175,7 +211,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # Affichage de la puissance maximale et horodate associée dans une valueBox
+ 
   output$max_power_info <- renderValueBox({
     data <- filtered_data()
     max_power <- max(data$`Total énergie soutirée (Wh)`, na.rm = TRUE)
