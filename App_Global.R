@@ -14,12 +14,19 @@ library(shinythemes)
 
 
 # chargement des données:
+<<<<<<< HEAD
 conso_sup36= read.csv2("conso-sup36-30-06-2024.csv")
 #conso_sup36= read_excel("conso-sup36-region.xlsx")
 # Supprimer les valeurs manquantes:
 #conso_sup36= conso_sup36[complete.cases(conso_sup36), ]
 
 conso= read.csv2("conso-inf36-30-06-2024.csv")
+=======
+conso_sup36= read_excel("conso-sup36-30juin region.xlsx")
+# Supprimer les valeurs manquantes:
+conso_sup36= conso_sup36[complete.cases(conso_sup36), ]
+
+>>>>>>> refs/remotes/origin/main
 # Transformation du dataset pour conso36:
 
 # df <- conso_sup36 %>%
@@ -51,7 +58,12 @@ conso= read.csv2("conso-inf36-30-06-2024.csv")
 #   select(c(16:18,2:15))
 
 # Charger les frontières des régions françaises depuis le fichier GeoJSON téléchargé
+<<<<<<< HEAD
 regions_geo <- st_read("regions.geojson")  
+=======
+# Remarque : Assurez-vous que le fichier "regions.geojson" est dans votre répertoire de travail
+regions_geo <- st_read("/Users/gertrudenyamassoule/Projet-Rshiny/regions.geojson")  # Si le fichier est dans le même dossier que le script
+>>>>>>> refs/remotes/origin/main
 regions_geo$code<-as.numeric(regions_geo$code)
 
 
