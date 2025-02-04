@@ -11,100 +11,119 @@ library(leaflet)
 library(sf)
 library(readxl)
 library(shinythemes)
+library(data.table)
+library(janitor)
 
 
 # chargement des données:
-<<<<<<< HEAD
-conso_sup36= read.csv2("conso-sup36-30-06-2024.csv")
-#conso_sup36= read_excel("conso-sup36-region.xlsx")
-# Supprimer les valeurs manquantes:
-#conso_sup36= conso_sup36[complete.cases(conso_sup36), ]
+conso_sup36= fread("conso-sup36-region.csv")
+conso= fread("conso-inf36-region.csv")
+df<-readRDS("Prod_enrgies.rds")
 
-conso= read.csv2("conso-inf36-30-06-2024.csv")
-=======
-conso_sup36= read_excel("conso-sup36-30juin region.xlsx")
-# Supprimer les valeurs manquantes:
-conso_sup36= conso_sup36[complete.cases(conso_sup36), ]
+conso <- conso %>% clean_names()
+conso_sup36 <- conso_sup36 %>% clean_names()
+df <- df %>% clean_names()
 
->>>>>>> refs/remotes/origin/main
-# Transformation du dataset pour conso36:
+# Transformation des dataset:
 
-# df <- conso_sup36 %>%
-#   mutate(
-#     Horodate_clean = sub("\\+.*$", "", Horodate),  # Supprimer le fuseau horaire
-#     Date = as.Date(sub("T.*$", "", Horodate_clean)),  # Extraire la date
-#     Heure = format(ymd_hms(Horodate_clean), "%H:%M:%S"),  # Extraire l'heure
-#     `Total énergie soutirée (Wh)` = as.numeric(`Total énergie soutirée (Wh)`),
-#     `Courbe Moyenne n°1 (Wh)` = as.numeric(`Courbe Moyenne n°1 (Wh)`),
-#     `Courbe Moyenne n°2 (Wh)` = as.numeric(`Courbe Moyenne n°2 (Wh)`)
-#   ) %>%
-#   select(c("Semaine max du mois (0/1)", "Jour max du mois (0/1)", Heure, Date, everything()))
+conso <- conso %>%
+  mutate(
+    horodate_clean = sub("\\+.*$", "", horodate),  # Supprimer le fuseau horaire
+    date = as.Date(sub("T.*$", "", horodate_clean)),  # Extraire la date
+    heure = format(ymd_hms(horodate_clean), "%H:%M:%S"),  # Extraire l'heure
+    total_energie_soutiree_wh = as.numeric(total_energie_soutiree_wh),
+    courbe_moyenne_n_1_wh = as.numeric(courbe_moyenne_n_1_wh),
+    courbe_moyenne_n_2_wh = as.numeric(courbe_moyenne_n_2_wh)
+  ) %>%
+  select(c(16:18,2:15))
+
+conso_sup36 <- conso_sup36 %>%
+  mutate(
+    horodate_clean = sub("\\+.*$", "", horodate),  # Supprimer le fuseau horaire
+    date = as.Date(sub("T.*$", "", horodate_clean)),  # Extraire la date
+    heure = format(ymd_hms(horodate_clean), "%H:%M:%S"),  # Extraire l'heure
+    total_energie_soutiree_wh = as.numeric(total_energie_soutiree_wh),
+    courbe_moyenne_n_1_wh = as.numeric(courbe_moyenne_n_1_wh),
+    courbe_moyenne_n_2_wh = as.numeric(courbe_moyenne_n_2_wh)
+  ) %>%
+  select(c(17:19,2:16))
 
 
-
- df<-readRDS("Prod_enrgies.rds")
-# 
-# df <- df %>%
-#   mutate(
-#     Horodate_clean = sub("\\+.*$", "", Horodate),
-#     # Extraire la date
-#     Date = as.Date(sub("T.*$", "", Horodate_clean)),
-#     # Extraire l'heure
-#     Heure = as_hms(sub("^.*T", "", Horodate_clean)),
-#     Total.énergie.injectée..Wh.=as.numeric(Total.énergie.injectée..Wh.),
-#     Courbe.Moyenne.n.1..Wh.=as.numeric(Courbe.Moyenne.n.1..Wh.),
-#     Courbe.Moyenne.n.2..Wh.=as.numeric(Courbe.Moyenne.n.2..Wh.)
-#   ) %>%
-#   select(c(16:18,2:15))
-
-# Charger les frontières des régions françaises depuis le fichier GeoJSON téléchargé
-<<<<<<< HEAD
+# Charger les frontières des regions françaises depuis le fichier GeoJSON téléchargé
 regions_geo <- st_read("regions.geojson")  
-=======
-# Remarque : Assurez-vous que le fichier "regions.geojson" est dans votre répertoire de travail
-regions_geo <- st_read("/Users/gertrudenyamassoule/Projet-Rshiny/regions.geojson")  # Si le fichier est dans le même dossier que le script
->>>>>>> refs/remotes/origin/main
 regions_geo$code<-as.numeric(regions_geo$code)
 
 
-courbe_moyenne_plots <- function(data,region,filiere,puissance) {
-  #--------------------------------------- A supprimer ------------------------------------
-  x_normal <- seq(-4, 4, length.out = 100)
-  y_normal <- dnorm(x_normal)
-  
-  x_expo <- seq(0, 10, length.out = 100)
-  y_expo <- dexp(x_expo)
-  
-  
-  p_normal <- ggplot(data.frame(x = x_normal, y = y_normal), aes(x, y)) +
-    geom_line(color = "blue") +
-    ggtitle("Courbes Moyenne conso <= 36") +
-    theme_minimal() +
-    theme(plot.title = element_text(hjust = 0.5))
-  
-  p_expo <- ggplot(data.frame(x = x_expo, y = y_expo), aes(x, y)) +
-    geom_line(color = "red") +
-    ggtitle("Courbes Moyenne conso > 36") +
-    theme_minimal() +
-    theme(plot.title = element_text(hjust = 0.5))
-  #-------------------------------------------------------------------------------------------------------------------
+courbe_moyenne_plots <- function(data,data1,data2,regions,filiere,puissance,puissance1,puissance2) {
   dd<-data %>%
-    filter(Région %in% region,
-           Filière.de.production == filiere,
-           Plage.de.puissance.injection == puissance)%>%
-    mutate(Total.énergie=Total.énergie.injectée..Wh./Nb.points.injection)%>%
-    group_by(Date,Région,Plage.de.puissance.injection) %>%
-    summarise(Total_energie = sum(Total.énergie, na.rm = TRUE),Courbe.Moyenne1=sum(Courbe.Moyenne.n.1..Wh., na.rm = TRUE),Courbe.Moyenne2=sum(Courbe.Moyenne.n.2..Wh., na.rm = TRUE))
+    filter(region %in% regions,
+           filiere_de_production == filiere,
+           plage_de_puissance_injection == puissance)%>%
+    mutate(total_energie=total_energie_injectee_wh/nb_points_injection)%>%
+    group_by(date,region,plage_de_puissance_injection) %>%
+    summarise(Total_energie = sum(total_energie, na.rm = TRUE),Courbe_Moyenne1=sum(courbe_moyenne_n_1_wh, na.rm = TRUE),Courbe_Moyenne2=sum(courbe_moyenne_n_2_wh, na.rm = TRUE))
   
-  production <- ggplot(dd, aes(x = Date)) +
+  
+  dd1<-data1 %>%
+    filter(region %in% regions,
+           plage_de_puissance_souscrite == puissance1)%>%
+    mutate(total_energie=total_energie_soutiree_wh/nb_points_soutirage)%>%
+    group_by(date,region,plage_de_puissance_souscrite) %>%
+    summarise(Total_energie = sum(total_energie, na.rm = TRUE),Courbe_Moyenne1=sum(courbe_moyenne_n_1_wh, na.rm = TRUE),Courbe_Moyenne2=sum(courbe_moyenne_n_2_wh, na.rm = TRUE))
+  
+  dd2<-data2 %>%
+    filter(region %in% regions,
+           plage_de_puissance_souscrite == puissance2)%>%
+    mutate(total_energie=total_energie_soutiree_wh/nb_points_soutirage)%>%
+    group_by(date,region,plage_de_puissance_souscrite) %>%
+    summarise(Total_energie = sum(total_energie, na.rm = TRUE),Courbe_Moyenne1=sum(courbe_moyenne_n_1_wh, na.rm = TRUE),Courbe_Moyenne2=sum(courbe_moyenne_n_2_wh, na.rm = TRUE))
+  
+  conso_inf <- ggplot(dd1, aes(x = date)) +
+    geom_line(aes(y = Total_energie, color = "Energie Moyenne soutirées")) +
+    geom_line(aes(y = Courbe_Moyenne1, color = "Courbe Moyenne 1"), linetype = "dotted", size = 1) +
+    geom_line(aes(y = Courbe_Moyenne2, color = "Courbe Moyenne 2"), linetype = "dashed", size = 1) +
+    scale_color_manual(values = c("Energie Moyenne soutirées" = "green", 
+                                  "Courbe Moyenne 1" = "red", 
+                                  "Courbe Moyenne 2" = "yellow")) +
+    labs(title = "Moyenne Totale (Tous profils) d'énergie soutirée <=36k",
+         x = "date",
+         y = "Consomation",
+         color = NULL) +
+    theme_minimal() +
+    theme(
+      legend.position = c(0, 1), # Positionnement relatif (en haut à gauche)
+      legend.justification = c(0, 1), # Ancre de la légende en haut à gauche
+      legend.background = element_rect(fill = "transparent", color = NA), # Fond transparent
+    )
+  
+  
+  conso_sup <- ggplot(dd2, aes(x = date)) +
+    geom_line(aes(y = Total_energie, color = "Energie Moyenne soutirées")) +
+    geom_line(aes(y = Courbe_Moyenne1, color = "Courbe Moyenne 1"), linetype = "dotted", size = 1) +
+    geom_line(aes(y = Courbe_Moyenne2, color = "Courbe Moyenne 2"), linetype = "dashed", size = 1) +
+    scale_color_manual(values = c("Energie Moyenne soutirées" = "green", 
+                                  "Courbe Moyenne 1" = "red", 
+                                  "Courbe Moyenne 2" = "yellow")) +
+    labs(title = "Moyenne Totale (Tous profils) d'énergie soutirée >36k",
+         x = "date",
+         y = "Consomation",
+         color = NULL) +
+    theme_minimal() +
+    theme(
+      legend.position = c(0, 1), # Positionnement relatif (en haut à gauche)
+      legend.justification = c(0, 1), # Ancre de la légende en haut à gauche
+      legend.background = element_rect(fill = "transparent", color = NA), # Fond transparent
+    )
+  
+    production <- ggplot(dd, aes(x = date)) +
     geom_line(aes(y = Total_energie, color = "Energie Moyenne injectées")) +
-    geom_line(aes(y = Courbe.Moyenne1, color = "Courbe Moyenne 1"), linetype = "dotted", size = 1) +
-    geom_line(aes(y = Courbe.Moyenne2, color = "Courbe Moyenne 2"), linetype = "dashed", size = 1) +
+    geom_line(aes(y = Courbe_Moyenne1, color = "Courbe Moyenne 1"), linetype = "dotted", size = 1) +
+    geom_line(aes(y = Courbe_Moyenne2, color = "Courbe Moyenne 2"), linetype = "dashed", size = 1) +
     scale_color_manual(values = c("Energie Moyenne injectées" = "green", 
                                   "Courbe Moyenne 1" = "red", 
                                   "Courbe Moyenne 2" = "yellow")) +
     labs(title = "Moyenne Totale d'énergie injectée",
-         x = "Date",
+         x = "date",
          y = "Production",
          color = NULL) +
     theme_minimal() +
@@ -114,7 +133,7 @@ courbe_moyenne_plots <- function(data,region,filiere,puissance) {
       legend.background = element_rect(fill = "transparent", color = NA), # Fond transparent
     )
   
-  list(p_normal, p_expo, production)
+  list(conso_inf, conso_sup, production)
 }
 
 ui <- dashboardPage(
@@ -143,26 +162,40 @@ server <- function(input, output, session) {
                column(3,
                       selectInput(
                         inputId = "region",
-                        label = "Sélectionner les régions",
-                        choices = unique(df$Région),
-                        selected = unique(df$Région)[1]
+                        label = "Sélectionner les regions",
+                        choices = unique(df$region),
+                        selected = unique(df$region)[1]
                       )),
                column(3,
-                      selectInput("fliere", "Sélectionner la filère", 
-                                  choices = unique(df$Filière.de.production), 
-                                  selected = unique(df$Filière.de.production)[1]
+                      selectInput("fliere", "Sélectionner la filère (Production)", 
+                                  choices = unique(df$filiere_de_production), 
+                                  selected = unique(df$filiere_de_production)[1]
                       )),
-               column(3,
+               column(2,
                       selectInput(
                         inputId = "plage_puissance",
                         label = "La plage de puissance",
-                        choices = unique(df$Plage.de.puissance.injection),
-                        selected = unique(df$Plage.de.puissance.injection)[1],
+                        choices = unique(df$plage_de_puissance_injection),
+                        selected = unique(df$plage_de_puissance_injection)[1],
+                      )),
+               column(2,
+                      selectInput(
+                        inputId = "plage_puissance_inf",
+                        label = "La plage de puissance <=36k",
+                        choices = unique(conso$plage_de_puissance_souscrite),
+                        selected = unique(conso$plage_de_puissance_souscrite)[1],
+                      )),
+               column(2,
+                      selectInput(
+                        inputId = "plage_puissance_sup",
+                        label = "La plage de puissance >36k",
+                        choices = unique(conso_sup36$plage_de_puissance_souscrite),
+                        selected = unique(conso_sup36$plage_de_puissance_souscrite)[1],
                       ))
       ),
       fluidRow(
-        column(4, plotOutput(outputId = "normal_density")),
-        column(4, plotOutput(outputId = "expo_density")),
+        column(4, plotOutput(outputId = "conso_inf")),
+        column(4, plotOutput(outputId = "conso_sup")),
         column(4, plotOutput(outputId = "Prod_Energie"))
       )
     )
@@ -170,10 +203,10 @@ server <- function(input, output, session) {
   
   observe({
     req(input$region,input$plage_puissance,input$fliere)  
-    plots <- courbe_moyenne_plots(df, input$region,input$fliere,input$plage_puissance)
+    plots <- courbe_moyenne_plots(df,conso,conso_sup36, input$region,input$fliere,input$plage_puissance,input$plage_puissance_inf,input$plage_puissance_sup)
     
-    output$normal_density <- renderPlot({ plots[[1]] })
-    output$expo_density <- renderPlot({ plots[[2]] })
+    output$conso_inf <- renderPlot({ plots[[1]] })
+    output$conso_sup <- renderPlot({ plots[[2]] })
     output$Prod_Energie <- renderPlot({ plots[[3]] })
   })
   
@@ -186,37 +219,51 @@ server <- function(input, output, session) {
                  column(4,
                         selectInput(
                           inputId = "region",
-                          label = "Sélectionner les régions",
-                          choices = unique(df$Région),
-                          selected = unique(df$Région)[1]
+                          label = "Sélectionner les regions",
+                          choices = unique(df$region),
+                          selected = unique(df$region)[1]
                         )),
                  column(2,
-                        selectInput("fliere", "Sélectionner la filère", 
-                                    choices = unique(df$Filière.de.production), 
-                                    selected = unique(df$Filière.de.production)[1]
+                        selectInput("fliere", "Sélectionner la filère (Production)", 
+                                    choices = unique(df$filiere_de_production), 
+                                    selected = unique(df$filiere_de_production)[1]
                         )),
-                 column(4,
+                 column(2,
                         selectInput(
                           inputId = "plage_puissance",
                           label = "La plage de puissance",
-                          choices = unique(df$Plage.de.puissance.injection),
-                          selected = unique(df$Plage.de.puissance.injection)[1],
+                          choices = unique(df$plage_de_puissance_injection),
+                          selected = unique(df$plage_de_puissance_injection)[1],
+                        )),
+                 column(2,
+                        selectInput(
+                          inputId = "plage_puissance_inf",
+                          label = "La plage de puissance <=36k",
+                          choices = unique(conso$plage_de_puissance_souscrite),
+                          selected = unique(conso$plage_de_puissance_souscrite)[1],
+                        )),
+                 column(2,
+                        selectInput(
+                          inputId = "plage_puissance_sup",
+                          label = "La plage de puissance >36k",
+                          choices = unique(conso_sup36$plage_de_puissance_souscrite),
+                          selected = unique(conso_sup36$plage_de_puissance_souscrite)[1],
                         ))
         ),
         fluidRow(
-          column(4, plotOutput(outputId = "normal_density")),
-          column(4, plotOutput(outputId = "expo_density")),
+          column(4, plotOutput(outputId = "conso_inf")),
+          column(4, plotOutput(outputId = "conso_sup")),
           column(4, plotOutput(outputId = "Prod_Energie"))
         )
       )
     })
     
     observe({
-      req(input$region,input$plage_puissance,input$fliere)
-      plots <- courbe_moyenne_plots(df, input$region,input$fliere,input$plage_puissance)
+      req(input$region,input$plage_puissance,input$fliere)  
+      plots <- courbe_moyenne_plots(df,conso,conso_sup36, input$region,input$fliere,input$plage_puissance,input$plage_puissance_inf,input$plage_puissance_sup)
       
-      output$normal_density <- renderPlot({ plots[[1]] })
-      output$expo_density <- renderPlot({ plots[[2]] })
+      output$conso_inf <- renderPlot({ plots[[1]] })
+      output$conso_sup <- renderPlot({ plots[[2]] })
       output$Prod_Energie <- renderPlot({ plots[[3]] })
     })
   })
@@ -226,38 +273,38 @@ server <- function(input, output, session) {
     output$main_content <- renderUI({
       tagList(h2("Analyse de la Consommation supérieur à 36k "),
               radioButtons(
-                inputId = "choix_pas",          
-                label = "Choisissez le pas de temps :", 
-                choices = c("Demi-horaire" = "demi_horaire", 
-                            "Quotidien" = "quotidien"),
+                inputId = "choix_pas",
+                label = "Choisissez le pas de temps :",
+                choices = c("Demi-horaire" = "demi_horaire", "Quotidien" = "quotidien"),
                 selected = "demi_horaire",
-                inline = TRUE      
+                inline = TRUE
               ),
               fluidRow(
-                
                 column(3,
-                       selectInput("region", "Sélectionner les régions", 
-                                   choices = unique(df$Région), 
-                                   selected = unique(df$Région)[1], 
+                       selectInput("region", "Sélectionner les regions", 
+                                   choices = unique(conso_sup36$region), 
+                                   selected = unique(conso_sup36$region)[1], 
                                    multiple = TRUE)),
-                # Sélecteur de secteur_activite
                 column(2,
-                       selectInput("secteur_activite", "Sélectionner le Secteur d'activité", 
-                                   choices = unique(df$`Secteur activité`), 
-                                   selected = unique(df$`Secteur activité`)[1],multiple = TRUE 
+                       selectInput("profil", "Sélectionner le Profil", 
+                                   choices = unique(conso_sup36$profil), 
+                                   selected = unique(conso_sup36$profil)[1]
                        )),
-                
                 column(2,
-                       selectInput("plage_puissance", "la plage de puissance", 
-                                   choices = unique(df$`Plage de puissance souscrite`), 
-                                   selected = unique(df$`Plage de puissance souscrite`)[1], 
+                       selectInput("plage_puissance", "La plage de puissance", 
+                                   choices = unique(conso_sup36$plage_de_puissance_souscrite), 
+                                   selected = unique(conso_sup36$plage_de_puissance_souscrite)[1], 
                                    multiple = TRUE)),
                 column(2,
+                       selectInput("secteur", "Secteur d'activité", 
+                                   choices = unique(conso_sup36$secteur_activite), 
+                                   selected = unique(conso_sup36$secteur_activite)[1], 
+                                   multiple = TRUE)),
+                column(1,
                        uiOutput("date_selector")),
-                
                 column(1, 
                        conditionalPanel(
-                         condition = "input.choix_pas == 'demi_horaire'", 
+                         condition = "input.choix_pas == 'demi_horaire'",
                          selectInput(
                            inputId = "heure_debut",
                            label = "Heure Début", 
@@ -266,8 +313,8 @@ server <- function(input, output, session) {
                                                 by = "30 mins"), 
                                             "%H:%M"),
                            selected = as.POSIXct("00:00:00", format = "%H:%M")
-                         ))),
-                
+                         )
+                       )),
                 column(1, 
                        conditionalPanel(
                          condition = "input.choix_pas == 'demi_horaire'", 
@@ -279,392 +326,540 @@ server <- function(input, output, session) {
                                                 by = "30 mins"), 
                                             "%H:%M"),
                            selected = format(as.POSIXct("23:30:00", format = "%H:%M:%S"),"%H:%M")
-                         ))),
+                         )
+                       )),
                 column(2,
                        downloadButton("download_data", "Télécharger les données", 
                                       class = "btn-success"), offset = 10)
               ),
-              
               fluidRow(
                 valueBoxOutput("total_energie"),
-                valueBoxOutput("total_points"),
+                valueBoxOutput("puissance_moyenne"),
                 valueBoxOutput("puissance_max")
               ),
-              
-              # Affichage du graphique interactif:
-              
               fluidRow(
-                column(8,plotlyOutput("energy_plot")),)
+                column(8, plotlyOutput("energy_plot")),
+                column(4, leafletOutput("map"))
+              )
       )
-      
     })
-    
     output$date_selector <- renderUI({
       if (input$choix_pas == "demi_horaire") {
-        dateInput("date", "Date", value = "2024-06-30")
+        dateInput("date", "date", value = "2024-06-30")
       } else {
-        dateRangeInput("date_range", "Plage de Dates", start = as.Date("2024-06-30") - 3, end = as.Date("2024-06-30"), width =1000)
+        dateRangeInput("date_range", "Plage de dates", 
+                       start = as.Date("2024-06-30") - 5, 
+                       end = as.Date("2024-06-30"), 
+                       width = 1000)
       }
     })
-    
-    
-    # Filtrage des données en fonction des choix de l'utilisateur:
-    
     filtered_data <- reactive({
       if (input$choix_pas == "demi_horaire") {
-        
-        # Filtrage des données selon les intervalles de temps:
-        
+        # Filtrer les données selon les intervalles de temps
         debut <- as_hms(paste0(input$heure_debut, ":00"))
         fin <- as_hms(paste0(input$heure_fin,":00"))
         
-        df_filtered <- df %>%
-          filter(Région %in% input$region,
-                 `Plage de puissance souscrite` %in% input$plage_puissance,
-                 Date %in% input$date,
-                 `Secteur activité` == input$secteur_activite,
-                 Heure >= debut & Heure <= fin)
-      } else {
-        df_filtered <- df %>%
-          filter(Région %in% input$region,
-                 `Plage de puissance souscrite` %in% input$plage_puissance,
-                 Date >= input$date_range[1] & Date <= input$date_range[2],
-                 `Secteur activité` == input$secteur_activite) %>%
-          group_by(Date,Région,`Plage de puissance souscrite`) %>%
-          summarise(Total_energie = sum(`Total énergie soutirée (Wh)`, na.rm = TRUE),Courbe.Moyenne1=sum(`Courbe Moyenne n°1 (Wh)`, na.rm = TRUE),Courbe.Moyenne2=sum(`Courbe Moyenne n°2 (Wh)`, na.rm = TRUE),
-                    Nb_points = unique(`Nb points soutirage`))
+        conso_sup36_filtered <- conso_sup36 %>%
+          filter(region %in% input$region,
+                 plage_de_puissance_souscrite %in% input$plage_puissance,
+                 secteur_activite %in% input$secteur,
+                 date %in% input$date,
+                 profil == input$profil,
+                 heure >= debut & heure <= fin)
       }
-      return(df_filtered)
+      else {
+        conso_sup36_filtered <- conso_sup36 %>%
+          filter(region %in% input$region,
+                 plage_de_puissance_souscrite %in% input$plage_puissance,
+                 secteur_activite %in% input$secteur,
+                 profil == input$profil,
+                 date >= input$date_range[1] & date <= input$date_range[2])%>%
+          group_by(date,region,plage_de_puissance_souscrite) %>%
+          summarise(Total_energie = sum(total_energie_soutiree_wh, na.rm = TRUE),Courbe_Moyenne1=sum(courbe_moyenne_n_1_wh, na.rm = TRUE),Courbe_Moyenne2=sum(courbe_moyenne_n_2_wh, na.rm = TRUE))
+      }
+      return(conso_sup36_filtered)
     })
-    
-    
-    # Valuebox : l'énergie Total:
     
     output$total_energie <- renderValueBox({
       data <- filtered_data()
       if (input$choix_pas == "demi_horaire") {
-        total_energie <- sum(data$`Total énergie soutirée (Wh)`, na.rm = TRUE)
-        valueBox(format(total_energie, big.mark = ","), "Total Energie Injectée", icon = icon("bolt"), color = "light-blue") 
+        
+        total_energie <- sum(data$total_energie_soutiree_wh, na.rm = TRUE)
+        valueBox(format(total_energie, big.mark = ","), "Total Energie soutirée", icon = icon("bolt"), color = "light-blue") 
       } else {
         total_energie <- sum(data$Total_energie, na.rm = TRUE)
-        valueBox(format(total_energie, big.mark = ","), "Total Energie Injectée", icon = icon("bolt"), color = "light-blue")
+        valueBox(format(total_energie, big.mark = ","), "Total Energie soutirée", icon = icon("bolt"), color = "light-blue")
       }
     })
     
-    # Valuebox : Nombre de points:
-    
-    output$total_points <- renderValueBox({
-      df <- filtered_data()
-      total_points <- length(unique(df$`Nb points soutirage`))  
-      valueBox(format(total_points, big.mark = ","), "Nombre de Points", icon = icon("point"), color = "green")
+    output$puissance_moyenne <- renderValueBox({
+      data <- filtered_data()
+      
+      if (input$choix_pas == "demi_horaire") {
+        
+        puissance_moyenne <- mean(data$total_energie_soutiree_wh, na.rm = TRUE)
+        valueBox(format(puissance_moyenne, big.mark = ","), "Puissance Moyenne", icon = icon("tachometer-alt"), color = "green",
+                 width = NULL)
+      }else {
+        puissance_moyenne <- mean(data$Total_energie, na.rm = TRUE)
+        valueBox(format(puissance_moyenne, big.mark = ","), "Puissance Moyenne", icon = icon("tachometer-alt"), color = "green",
+                 width = NULL)
+      }
     })
-    # Valuebox : Puissance maximal:
     
     output$puissance_max <- renderValueBox({
       data <- filtered_data()
       if (input$choix_pas == "demi_horaire") {
-        puissance_max <- max(data$`Total énergie soutirée (Wh)` , na.rm = TRUE)
-        horodate_max <- data$Horodate_clean[which.max(data$`Total énergie soutirée (Wh)`)]
+        
+        puissance_max <- max(data$total_energie_soutiree_wh , na.rm = TRUE)
+        horodate_max <- data$horodate_clean[which.max(data$total_energie_soutiree_wh)]
         valueBox(format(puissance_max, big.mark = ","), paste("Puissance Max. à", horodate_max), icon = icon("chart-line"), color = "yellow")
       } else {
         puissance_max <- max(data$Total_energie, na.rm = TRUE)
-        horodate_max <- data$Date[which.max(data$Total_energie)]
+        horodate_max <- data$date[which.max(data$Total_energie)]
         valueBox(format(puissance_max, big.mark = ","), paste("Puissance Max. à", horodate_max), icon = icon("chart-line"), color = "yellow")
       }
     })
-    
     
     output$energy_plot <- renderPlotly({
       data <- filtered_data()
       if (input$choix_pas == "demi_horaire") {
+        
         fig <- plot_ly(data, 
-                       x = ~ as.POSIXct(paste(input$date, Heure), format = "%Y-%m-%d %H:%M:%S"),
-                       y = ~ `Total énergie soutirée (Wh)`/10^5, 
-                       color = ~ paste(data$`Plage de puissance souscrite`, data$Région, sep = "_"),
-                       type = 'scatter', mode = 'line', name = ~Région) %>%
+                       x = ~ as.POSIXct(paste(input$date, heure), format = "%Y-%m-%d %H:%M:%S"),
+                       y = ~ total_energie_soutiree_wh/nb_points_soutirage, 
+                       color = ~ paste(data$plage_de_puissance_souscrite, data$region, sep = "_"),
+                       type = 'scatter', mode = 'line', name = ~region) %>%
           add_trace(
-            x = ~ as.POSIXct(paste(input$date, Heure), format = "%Y-%m-%d %H:%M:%S"),
-            y = ~ `Courbe Moyenne n°1 (Wh)`,
+            x = ~ as.POSIXct(paste(input$date, heure), format = "%Y-%m-%d %H:%M:%S"),
+            y = ~ courbe_moyenne_n_1_wh,
             type = 'scatter',
             mode = 'line',
             name = 'Courbe Moyenne n.1',
-            line = list(dash = 'dot', color = ~ paste(data$`Plage de puissance souscrite`, data$Région, sep = "_"))
+            line = list(dash = 'dot', color = ~ paste(data$plage_de_puissance_souscrite, data$region, sep = "_"))
           ) %>%
           add_trace(
-            x = ~ as.POSIXct(paste(input$date, Heure), format = "%Y-%m-%d %H:%M:%S"),
-            y = ~ `Courbe Moyenne n°2 (Wh)`,
+            x = ~ as.POSIXct(paste(input$date, heure), format = "%Y-%m-%d %H:%M:%S"),
+            y = ~ courbe_moyenne_n_2_wh,
             type = 'scatter',
             mode = 'line',
             name = 'Courbe Moyenne n.2',
-            line = list(dash = 'dash', color = ~ paste(data$`Plage de puissance souscrite`, data$Région, sep = "_"))
+            line = list(dash = 'dash', color = ~ paste(data$plage_de_puissance_souscrite, data$region, sep = "_"))
           ) %>%
           layout(
             title = "Totale d'énergie injéctées",
             xaxis = list(title = "Plage horaire"),
-            yaxis = list(title = "Consommation (100 kWh)")
+            yaxis = list(title = "Production")
           )
       }else {
         fig <- plot_ly(data, 
-                       x = ~ data$Date,
-                       y = ~ Total_energie/10^5, 
-                       color = ~ paste(data$`Plage de puissance souscrite`, data$Région, sep = "_"),
-                       type = 'scatter', mode = 'line', name = ~Région) %>%
+                       x = ~ data$date,
+                       y = ~ Total_energie, 
+                       color = ~ paste(data$plage_de_puissance_souscrite, data$region, sep = "_"),
+                       type = 'scatter', mode = 'line', name = ~region) %>%
           add_trace(
-            x = ~ data$Date,
-            y = ~ Courbe.Moyenne1,
+            x = ~ data$date,
+            y = ~ Courbe_Moyenne1,
             type = 'scatter',
             mode = 'line',
             name = 'Courbe Moyenne n.1',
-            line = list(dash = 'dot', color = ~ paste(data$`Plage de puissance souscrite`, data$Région, sep = "_"))
+            line = list(dash = 'dot', color = ~ paste(data$plage_de_puissance_souscrite, data$region, sep = "_"))
           ) %>%
           add_trace(
-            x = ~ data$Date,
-            y = ~ Courbe.Moyenne2,
+            x = ~ data$date,
+            y = ~ Courbe_Moyenne2,
             type = 'scatter',
             mode = 'line',
             name = 'Courbe Moyenne n.2',
-            line = list(dash = 'dash', color = ~ paste(data$`Plage de puissance souscrite`, data$Région, sep = "_"))
+            line = list(dash = 'dash', color = ~ paste(data$plage_de_puissance_souscrite, data$region, sep = "_"))
           ) %>%
           layout(
             title = "Totale d'énergie injéctées",
-            xaxis = list(title = "Date"),
-            yaxis = list(title = "Consommation (100 kWh)")
+            xaxis = list(title = "date"),
+            yaxis = list(title = "Production")
           )
       }
+      
       fig
       
     })
-    
-    
+    output$map <- renderLeaflet({
+      if (input$choix_pas == "demi_horaire") {
+        debut <- as_hms(paste0(input$heure_debut, ":00"))
+        fin <- as_hms(paste0(input$heure_fin,":00"))
+        
+        conso_sup36_aggregated <- conso_sup36 %>%
+          filter(plage_de_puissance_souscrite %in% input$plage_puissance,
+                 secteur_activite %in% input$secteur,
+                 date %in% input$date,
+                 profil == input$profil,
+                 heure >= debut & heure <= fin)%>%
+          group_by(code_region,nb_points_soutirage,profil) %>%
+          summarise(Total_energie = sum(as.numeric(total_energie_soutiree_wh), na.rm = TRUE))
+        regions_geo <- regions_geo %>%
+          left_join(conso_sup36_aggregated, by = c("code" = "code_region"))
+        
+        leaflet(data = regions_geo) %>%
+          addTiles() %>%
+          addPolygons(
+            fillColor = ~colorBin("YlOrRd", Total_energie)(Total_energie),
+            weight = 2,
+            opacity = 1,
+            color = "white",
+            dashArray = "3",
+            fillOpacity = 0.7,
+            popup = ~paste("region: ", nom, ",", "\nTotal énergie soutirée: ", Total_energie,"\nNb de points d'injection : ",unique(nb_points_soutirage)),
+            label = ~paste(nom, ",", "Total énergie soutirée: ", round(Total_energie/10^6,3),"Mkh"),
+            labelOptions = labelOptions(
+              direction = "center",  
+              style = list("font-weight" = "bold", "font-size" = "12px", "color" = "black")
+            )
+          ) %>%
+          addLegend(
+            position = "bottomleft",
+            pal = colorQuantile("YlOrRd", regions_geo$Total_energie, n = 5),
+            values = regions_geo$Total_energie,
+            title = "Total énergie soutirée",
+            opacity = 0.5
+          )
+      }else {
+        conso_sup36_aggregated <- conso_sup36 %>%
+          filter(plage_de_puissance_souscrite %in% input$plage_puissance,
+                 secteur_activite %in% input$secteur,
+                 profil == input$profil,
+                 date >= input$date_range[1] & date <= input$date_range[2])%>%
+          group_by(code_region) %>%
+          summarise(Total_energie = sum(as.numeric(total_energie_soutiree_wh), na.rm = TRUE))
+        regions_geo <- regions_geo %>%
+          left_join(conso_sup36_aggregated, by = c("code" = "code_region"))
+        
+        leaflet(data = regions_geo) %>%
+          addTiles() %>%
+          addPolygons(
+            fillColor = ~colorBin("YlOrRd", Total_energie)(Total_energie),
+            weight = 2,
+            opacity = 1,
+            color = "white",
+            dashArray = "3",
+            fillOpacity = 0.7,
+            popup = ~paste("region: ", nom, ",", "\nTotal énergie soutirée: ", Total_energie),
+            label = ~paste(nom, ",", "Total énergie soutirée: ", round(Total_energie/10^6,3),"Mkh"),  
+            labelOptions = labelOptions(
+              direction = "center",  
+              style = list("font-weight" = "bold", "font-size" = "12px", "color" = "black") 
+            )
+          ) %>%
+          addLegend(
+            position = "bottomleft",
+            pal = colorQuantile("YlOrRd", regions_geo$Total_energie, n = 5),
+            values = regions_geo$Total_energie,
+            title = "Total énergie soutirée",
+            opacity = 0.5
+          )
+        
+      }
+    })
     output$download_data <- downloadHandler(
       filename = function() { 
-        paste("prod_energies",input$region,input$fliere ,input$date, ".csv", sep = "") 
+        paste("prod_energies",input$region,input$profil ,input$date, ".csv", sep = "") 
       },
       content = function(file) {
         write.csv(filtered_data(), file, row.names = FALSE, fileEncoding = "UTF-8")
       }
     )
-    
   })
   
   observeEvent(input$tab_36k_inf, {
-    output$main_content <- renderUI({
-      ("Consommation inférieure à 36k")
-      theme = shinytheme("cyborg")
-      titlePanel("Consommation demi-horaire")
-      
-      sidebarLayout(
-        sidebarPanel(
-          
-          dateRangeInput("Horodate", "Sélectionner une plage de dates :", 
-                         start = min(conso$Horodate), 
-                         end = max(conso$Horodate)),
-          
-          
-          selectInput("Région", "Sélectionner une Région :", 
-                      choices = unique(conso$Région), 
-                      selected = unique(conso$Région)[1]),
-          
-          
-          uiOutput("Profil"), 
-          
-          
-          uiOutput("Plage_puissance"),
-          
-          
-          checkboxInput("aggregate_daily", "Afficher les données par jour", value = FALSE),
-          
-          
-          selectInput("graph_type", "Choisir le graphique à afficher", 
-                      choices = c("Total énergie soutirée", "Courbe Moyenne"), 
-                      selected = "Total énergie soutirée"),
-          
-          
-          downloadButton("download_data", "Télécharger les données")
-        ),
-        mainPanel(
-          plotlyOutput("plot1"), 
-          fluidRow(
-            valueBoxOutput("total_conso"),       
-            valueBoxOutput("avg_power"),        
-            valueBoxOutput("max_power_info")    
-          )
+      output$main_content <- renderUI({
+        tagList(h2("Analyse de la Consommation inférieur à 36k "),            
+                radioButtons(
+                  inputId = "choix_pas",
+                  label = "Choisissez le pas de temps :",
+                  choices = c("Demi-horaire" = "demi_horaire", "Quotidien" = "quotidien"),
+                  selected = "demi_horaire",
+                  inline = TRUE
+                ),
+                fluidRow(
+                  column(3,
+                         selectInput("region", "Sélectionner les regions", 
+                                     choices = unique(conso$region), 
+                                     selected = unique(conso$region)[1], 
+                                     multiple = TRUE)),
+                  column(3,
+                         selectInput("profil", "Sélectionner le Profil", 
+                                     choices = unique(conso$profil), 
+                                     selected = unique(conso$profil)[1]
+                         )),
+                  column(2,
+                         selectInput("plage_puissance", "La plage de puissance", 
+                                     choices = unique(conso$plage_de_puissance_souscrite), 
+                                     selected = unique(conso$plage_de_puissance_souscrite)[1], 
+                                     multiple = TRUE)),
+                  column(2,
+                         uiOutput("date_selector")),
+                  column(1, 
+                         conditionalPanel(
+                           condition = "input.choix_pas == 'demi_horaire'",
+                           selectInput(
+                             inputId = "heure_debut",
+                             label = "Heure Début", 
+                             choices = format(seq(from = as.POSIXct("00:00:00", format = "%H:%M:%S"), 
+                                                  to = as.POSIXct("23:00:00", format = "%H:%M:%S"), 
+                                                  by = "30 mins"), 
+                                              "%H:%M"),
+                             selected = as.POSIXct("00:00:00", format = "%H:%M")
+                           )
+                         )),
+                  column(1, 
+                         conditionalPanel(
+                           condition = "input.choix_pas == 'demi_horaire'", 
+                           selectInput(
+                             inputId = "heure_fin",
+                             label = "Heure Fin", 
+                             choices = format(seq(from = as.POSIXct("00:00:00", format = "%H:%M:%S"), 
+                                                  to = as.POSIXct("23:30:00", format = "%H:%M:%S"), 
+                                                  by = "30 mins"), 
+                                              "%H:%M"),
+                             selected = format(as.POSIXct("23:30:00", format = "%H:%M:%S"),"%H:%M")
+                           )
+                         )),
+                  column(2,
+                         downloadButton("download_data", "Télécharger les données", 
+                                        class = "btn-success"), offset = 10)
+                ),
+                fluidRow(
+                  valueBoxOutput("total_energie"),
+                  valueBoxOutput("puissance_moyenne"),
+                  valueBoxOutput("puissance_max")
+                ),
+                fluidRow(
+                  column(8, plotlyOutput("energy_plot")),
+                  column(4, leafletOutput("map"))
+                )
         )
-      )
-    })
-    output$Profil <- renderUI({
-      req(input$Région)  
-      pickerInput(
-        "Profil", "Sélectionner un Profil :", 
-        choices = unique(conso %>% filter(Région == input$Région) %>% pull(Profil)),
-        options = pickerOptions(
-          actionsBox = TRUE, 
-          size = 10,
-          selectedTextFormat = "count >= 1"
-        ),
-        multiple = TRUE,
-        selected = unique(conso$Profil)[1]
-      )
-    })
-    
-    
-    output$Plage_puissance <- renderUI({
-      req(input$Région)  
-      pickerInput(
-        "Plage_puissance", "Sélectionner une plage de puissance :", 
-        choices = unique(conso %>% filter(Région == input$Région) %>% pull(`Plage de puissance souscrite`)),
-        options = pickerOptions(
-          actionsBox = TRUE, 
-          size = 10,
-          selectedTextFormat = "count >= 1"
-        ),
-        multiple = TRUE,
-        selected = unique(conso$`Plage de puissance souscrite`)[1]
-      )
-    })
-    
-    
-    filtered_data <- reactive({
-      req(input$Région, input$Profil, input$Plage_puissance, input$Horodate)
-      data <- conso %>%
-        filter(
-          Région == input$Région,
-          Profil %in% input$Profil,
-          `Plage de puissance souscrite` %in% input$Plage_puissance,
-          Horodate >= input$Horodate[1],
-          Horodate <= input$Horodate[2]
-        )
+      })
+      output$date_selector <- renderUI({
+        if (input$choix_pas == "demi_horaire") {
+          dateInput("date", "date", value = "2024-06-30")
+        } else {
+          dateRangeInput("date_range", "Plage de dates", 
+                         start = as.Date("2024-06-30") - 5, 
+                         end = as.Date("2024-06-30"), 
+                         width = 1000)
+        }
+      })
+      filtered_data <- reactive({
+        if (input$choix_pas == "demi_horaire") {
+          # Filtrer les données selon les intervalles de temps
+          debut <- as_hms(paste0(input$heure_debut, ":00"))
+          fin <- as_hms(paste0(input$heure_fin,":00"))
+          
+          conso_filtered <- conso %>%
+            filter(region %in% input$region,
+                   plage_de_puissance_souscrite %in% input$plage_puissance,
+                   date %in% input$date,
+                   profil == input$profil,
+                   heure >= debut & heure <= fin)
+        }
+        else {
+          conso_filtered <- conso %>%
+            filter(region %in% input$region,
+                   plage_de_puissance_souscrite %in% input$plage_puissance,
+                   profil == input$profil,
+                   date >= input$date_range[1] & date <= input$date_range[2])%>%
+            group_by(date,region,plage_de_puissance_souscrite) %>%
+            summarise(Total_energie = sum(total_energie_soutiree_wh, na.rm = TRUE),Courbe_Moyenne1=sum(courbe_moyenne_n_1_wh, na.rm = TRUE),Courbe_Moyenne2=sum(courbe_moyenne_n_2_wh, na.rm = TRUE))
+        }
+        return(conso_filtered)
+      })
       
-      if (input$aggregate_daily) {
+      output$total_energie <- renderValueBox({
+        data <- filtered_data()
+        if (input$choix_pas == "demi_horaire") {
+          
+          total_energie <- sum(data$total_energie_soutiree_wh, na.rm = TRUE)
+          valueBox(format(total_energie, big.mark = ","), "Total Energie soutirée", icon = icon("bolt"), color = "light-blue") 
+        } else {
+          total_energie <- sum(data$Total_energie, na.rm = TRUE)
+          valueBox(format(total_energie, big.mark = ","), "Total Energie soutirée", icon = icon("bolt"), color = "light-blue")
+        }
+      })
+      
+      output$puissance_moyenne <- renderValueBox({
+        data <- filtered_data()
         
-        data <- data %>%
-          mutate(Date = as.Date(Horodate)) %>%
-          group_by(Date, Région, Profil) %>%
-          summarise(`Total énergie soutirée (Wh)` = sum(`Total énergie soutirée (Wh)`, na.rm = TRUE),
-                    Max_Power = max(`Total énergie soutirée (Wh)`, na.rm = TRUE),
-                    Avg_Power = mean(`Total énergie soutirée (Wh)`, na.rm = TRUE),
-                    .groups = "drop")
-        
-        
-        data$`Courbe Moyenne n°1 (Wh)` <- data$Avg_Power  
-      } else {
-        # Pas demi-horaire (pas d'agrégation)
-        data <- data %>%
-          mutate(Max_Horodate = Horodate)
-      }
+        if (input$choix_pas == "demi_horaire") {
+          
+          puissance_moyenne <- mean(data$total_energie_soutiree_wh, na.rm = TRUE)
+          valueBox(format(puissance_moyenne, big.mark = ","), "Puissance Moyenne", icon = icon("tachometer-alt"), color = "green",
+                   width = NULL)
+        }else {
+          puissance_moyenne <- mean(data$Total_energie, na.rm = TRUE)
+          valueBox(format(puissance_moyenne, big.mark = ","), "Puissance Moyenne", icon = icon("tachometer-alt"), color = "green",
+                   width = NULL)
+        }
+      })
       
-      data
-    })
-    
-    # Graphique interactif
-    output$plot1 <- renderPlotly({
-      data <- filtered_data()
+      output$puissance_max <- renderValueBox({
+        data <- filtered_data()
+        if (input$choix_pas == "demi_horaire") {
+          
+          puissance_max <- max(data$total_energie_soutiree_wh , na.rm = TRUE)
+          horodate_max <- data$horodate_clean[which.max(data$total_energie_soutiree_wh)]
+          valueBox(format(puissance_max, big.mark = ","), paste("Puissance Max. à", horodate_max), icon = icon("chart-line"), color = "yellow")
+        } else {
+          puissance_max <- max(data$Total_energie, na.rm = TRUE)
+          horodate_max <- data$date[which.max(data$Total_energie)]
+          valueBox(format(puissance_max, big.mark = ","), paste("Puissance Max. à", horodate_max), icon = icon("chart-line"), color = "yellow")
+        }
+      })
       
-      if (nrow(data) == 0) {
-        return(NULL)
-      }
-      
-      
-      data$Profile_PowerRange <- paste(data$Profil, data$`Plage de puissance souscrite`, sep = " - ")
-      
-      
-      unique_combinations <- unique(data$Profile_PowerRange)
-      colors <- viridis::viridis(length(unique_combinations))
-      names(colors) <- unique_combinations
-      
-      
-      p <- plot_ly()
-      
-      
-      if (input$graph_type == "Total énergie soutirée") {
-        p <- p %>%
-          add_trace(
-            data = data,
-            x = if (input$aggregate_daily) ~Date else ~Horodate,
-            y = ~`Total énergie soutirée (Wh)`,
-            color = ~Profile_PowerRange,
-            colors = colors,
-            type = 'scatter',
-            mode = 'lines+markers',
-            hoverinfo = "text",
-            text = ~paste(
-              "Région :", Région,
-              "<br>Profil :", Profil,
-              "<br>Énergie :", round(`Total énergie soutirée (Wh)`, 2),
-              if (input$aggregate_daily) paste("<br>Date :", Date) else paste("<br>Heure :", Horodate)
+      output$energy_plot <- renderPlotly({
+        data <- filtered_data()
+        View(data)
+        if (input$choix_pas == "demi_horaire") {
+          
+          fig <- plot_ly(data, 
+                         x = ~ as.POSIXct(paste(input$date, heure), format = "%Y-%m-%d %H:%M:%S"),
+                         y = ~ total_energie_soutiree_wh/nb_points_soutirage, 
+                         color = ~ paste(data$plage_de_puissance_souscrite, data$region, sep = "_"),
+                         type = 'scatter', mode = 'line', name = ~region) %>%
+            add_trace(
+              x = ~ as.POSIXct(paste(input$date, heure), format = "%Y-%m-%d %H:%M:%S"),
+              y = ~ courbe_moyenne_n_1_wh,
+              type = 'scatter',
+              mode = 'line',
+              name = 'Courbe Moyenne n.1',
+              line = list(dash = 'dot', color = ~ paste(data$plage_de_puissance_souscrite, data$region, sep = "_"))
+            ) %>%
+            add_trace(
+              x = ~ as.POSIXct(paste(input$date, heure), format = "%Y-%m-%d %H:%M:%S"),
+              y = ~ courbe_moyenne_n_2_wh,
+              type = 'scatter',
+              mode = 'line',
+              name = 'Courbe Moyenne n.2',
+              line = list(dash = 'dash', color = ~ paste(data$plage_de_puissance_souscrite, data$region, sep = "_"))
+            ) %>%
+            layout(
+              title = "Totale d'énergie injéctées",
+              xaxis = list(title = "Plage horaire"),
+              yaxis = list(title = "Production")
             )
-          )
-      } else if (input$graph_type == "Courbe Moyenne") {
-        p <- p %>%
-          add_trace(
-            data = data,
-            x = if (input$aggregate_daily) ~Date else ~Horodate,
-            y = ~`Courbe Moyenne n°1 (Wh)`,
-            color = ~Profile_PowerRange,
-            colors = colors,
-            type = 'scatter',
-            mode = 'lines',
-            line = list(dash = "dot", width = 2),
-            name = "Courbe Moyenne"
-          )
-      }
-      
-      p <- p %>%
-        layout(
-          title = if (input$aggregate_daily) "Consommation quotidienne" else "Consommation demi-horaire",
-          xaxis = list(title = if (input$aggregate_daily) "Date" else "Heure"),
-          yaxis = list(title = "Énergie (Wh)"),
-          legend = list(title = list(text = "<b>Profil & Région</b>"))
-        )
-      
-      p
-    })
-    
-    
-    output$total_conso <- renderValueBox({
-      total <- sum(filtered_data()$`Total énergie soutirée (Wh)`, na.rm = TRUE)
-      valueBox(
-        value = round(total, 2), 
-        subtitle = if (input$aggregate_daily) "Consommation totale par jour (Wh)" else "Consommation totale (Wh)",
-        icon = icon("chart-bar"),
-        color = "blue"
+        }else {
+          fig <- plot_ly(data, 
+                         x = ~ data$date,
+                         y = ~ Total_energie, 
+                         color = ~ paste(data$plage_de_puissance_souscrite, data$region, sep = "_"),
+                         type = 'scatter', mode = 'line', name = ~region) %>%
+            add_trace(
+              x = ~ data$date,
+              y = ~ Courbe_Moyenne1,
+              type = 'scatter',
+              mode = 'line',
+              name = 'Courbe Moyenne n.1',
+              line = list(dash = 'dot', color = ~ paste(data$plage_de_puissance_souscrite, data$region, sep = "_"))
+            ) %>%
+            add_trace(
+              x = ~ data$date,
+              y = ~ Courbe_Moyenne2,
+              type = 'scatter',
+              mode = 'line',
+              name = 'Courbe Moyenne n.2',
+              line = list(dash = 'dash', color = ~ paste(data$plage_de_puissance_souscrite, data$region, sep = "_"))
+            ) %>%
+            layout(
+              title = "Totale d'énergie injéctées",
+              xaxis = list(title = "date"),
+              yaxis = list(title = "Production")
+            )
+        }
+        
+        fig
+        
+      })
+      output$map <- renderLeaflet({
+        if (input$choix_pas == "demi_horaire") {
+          debut <- as_hms(paste0(input$heure_debut, ":00"))
+          fin <- as_hms(paste0(input$heure_fin,":00"))
+          
+          conso_aggregated <- conso %>%
+            filter(plage_de_puissance_souscrite %in% input$plage_puissance,
+                   date %in% input$date,
+                   profil == input$profil,
+                   heure >= debut & heure <= fin)%>%
+            group_by(code_region,nb_points_soutirage,profil) %>%
+            summarise(Total_energie = sum(as.numeric(total_energie_soutiree_wh), na.rm = TRUE))
+          regions_geo <- regions_geo %>%
+            left_join(conso_aggregated, by = c("code" = "code_region"))
+          
+          leaflet(data = regions_geo) %>%
+            addTiles() %>%
+            addPolygons(
+              fillColor = ~colorBin("YlOrRd", Total_energie)(Total_energie),
+              weight = 2,
+              opacity = 1,
+              color = "white",
+              dashArray = "3",
+              fillOpacity = 0.7,
+              popup = ~paste("region: ", nom, ",", "\nTotal énergie soutirée: ", Total_energie,"\nNb de points d'injection : ",unique(nb_points_soutirage)),
+              label = ~paste(nom, ",", "Total énergie soutirée: ", round(Total_energie/10^6,3),"Mkh"),
+              labelOptions = labelOptions(
+                direction = "center",  
+                style = list("font-weight" = "bold", "font-size" = "12px", "color" = "black")
+              )
+            ) %>%
+            addLegend(
+              position = "bottomleft",
+              pal = colorQuantile("YlOrRd", regions_geo$Total_energie, n = 5),
+              values = regions_geo$Total_energie,
+              title = "Total énergie soutirée",
+              opacity = 0.5
+            )
+        }else {
+          conso_aggregated <- conso %>%
+            filter(plage_de_puissance_souscrite %in% input$plage_puissance,
+                   profil == input$profil,
+                   date >= input$date_range[1] & date <= input$date_range[2])%>%
+            group_by(code_region) %>%
+            summarise(Total_energie = sum(as.numeric(total_energie_soutiree_wh), na.rm = TRUE))
+          regions_geo <- regions_geo %>%
+            left_join(conso_aggregated, by = c("code" = "code_region"))
+          
+          leaflet(data = regions_geo) %>%
+            addTiles() %>%
+            addPolygons(
+              fillColor = ~colorBin("YlOrRd", Total_energie)(Total_energie),
+              weight = 2,
+              opacity = 1,
+              color = "white",
+              dashArray = "3",
+              fillOpacity = 0.7,
+              popup = ~paste("region: ", nom, ",", "\nTotal énergie soutirée: ", Total_energie),
+              label = ~paste(nom, ",", "Total énergie soutirée: ", round(Total_energie/10^6,3),"Mkh"),  
+              labelOptions = labelOptions(
+                direction = "center",  
+                style = list("font-weight" = "bold", "font-size" = "12px", "color" = "black") 
+              )
+            ) %>%
+            addLegend(
+              position = "bottomleft",
+              pal = colorQuantile("YlOrRd", regions_geo$Total_energie, n = 5),
+              values = regions_geo$Total_energie,
+              title = "Total énergie soutirée",
+              opacity = 0.5
+            )
+          
+        }
+      })
+      output$download_data <- downloadHandler(
+        filename = function() { 
+          paste("prod_energies",input$region,input$profil ,input$date, ".csv", sep = "") 
+        },
+        content = function(file) {
+          write.csv(filtered_data(), file, row.names = FALSE, fileEncoding = "UTF-8")
+        }
       )
     })
-    
-    
-    output$avg_power <- renderValueBox({
-      avg_power <- mean(filtered_data()$`Total énergie soutirée (Wh)`, na.rm = TRUE)
-      valueBox(
-        value = round(avg_power, 2), 
-        subtitle = "Puissance moyenne (Wh)",
-        icon = icon("bolt"),
-        color = "green"
-      )
-    })
-    
-    
-    output$max_power_info <- renderValueBox({
-      data <- filtered_data()
-      max_power <- max(data$`Total énergie soutirée (Wh)`, na.rm = TRUE)
-      max_time <- data$Max_Horodate[which.max(data$`Total énergie soutirée (Wh)`)]
-      valueBox(
-        value = round(max_power, 2), 
-        subtitle = paste("Puissance max (Wh) atteinte le :", max_time),
-        icon = icon("fire"),
-        color = "red"
-      )
-    })
-    
-    # Télécharger les données affichées
-    output$download_data <- downloadHandler(
-      filename = function() {
-        paste("consommation_donnees", Sys.Date(), ".csv", sep = "")
-      },
-      content = function(file) {
-        write.csv(filtered_data(), file, row.names = FALSE)
-      }
-    )
-  })
   
   observeEvent(input$tab_prod, {
     output$main_content <- renderUI({
@@ -678,19 +873,19 @@ server <- function(input, output, session) {
               ),
               fluidRow(
                 column(3,
-                       selectInput("region", "Sélectionner les régions", 
-                                   choices = unique(df$Région), 
-                                   selected = unique(df$Région)[1], 
+                       selectInput("region", "Sélectionner les regions", 
+                                   choices = unique(df$region), 
+                                   selected = unique(df$region)[1], 
                                    multiple = TRUE)),
                 column(2,
                        selectInput("fliere", "Sélectionner la filère", 
-                                   choices = unique(df$Filière.de.production), 
-                                   selected = unique(df$Filière.de.production)[1]
+                                   choices = unique(df$filiere_de_production), 
+                                   selected = unique(df$filiere_de_production)[1]
                        )),
-                column(2,
+                column(3,
                        selectInput("plage_puissance", "La plage de puissance", 
-                                   choices = unique(df$Plage.de.puissance.injection), 
-                                   selected = unique(df$Plage.de.puissance.injection)[1], 
+                                   choices = unique(df$plage_de_puissance_injection), 
+                                   selected = unique(df$plage_de_puissance_injection)[1], 
                                    multiple = TRUE)),
                 column(2,
                        uiOutput("date_selector")),
@@ -737,10 +932,10 @@ server <- function(input, output, session) {
     })
     output$date_selector <- renderUI({
       if (input$choix_pas == "demi_horaire") {
-        dateInput("date", "Date", value = "2024-06-30")
+        dateInput("date", "date", value = "2024-06-30")
       } else {
-        dateRangeInput("date_range", "Plage de Dates", 
-                       start = as.Date("2024-06-30") - 3, 
+        dateRangeInput("date_range", "Plage de dates", 
+                       start = as.Date("2024-06-30") - 5, 
                        end = as.Date("2024-06-30"), 
                        width = 1000)
       }
@@ -752,28 +947,28 @@ server <- function(input, output, session) {
         fin <- as_hms(paste0(input$heure_fin,":00"))
         
         df_filtered <- df %>%
-          filter(Région %in% input$region,
-                 Plage.de.puissance.injection %in% input$plage_puissance,
-                 Date %in% input$date,
-                 Filière.de.production == input$fliere,
-                 Heure >= debut & Heure <= fin)
+          filter(region %in% input$region,
+                 plage_de_puissance_injection %in% input$plage_puissance,
+                 date %in% input$date,
+                 filiere_de_production == input$fliere,
+                 heure >= debut & heure <= fin)
       } else {
         if(input$fliere != "F0 : Total toutes filières"){
           df_filtered <- df %>%
-            filter(Région %in% input$region,
-                   Plage.de.puissance.injection %in% input$plage_puissance,
-                   Date >= input$date_range[1] & Date <= input$date_range[2],
-                   Filière.de.production == input$fliere) %>%
-            group_by(Date,Région,Plage.de.puissance.injection) %>%
-            summarise(Total_energie = sum(Total.énergie.injectée..Wh./Nb.points.injection, na.rm = TRUE),Courbe.Moyenne1=sum(Courbe.Moyenne.n.1..Wh., na.rm = TRUE),Courbe.Moyenne2=sum(Courbe.Moyenne.n.2..Wh., na.rm = TRUE))
+            filter(region %in% input$region,
+                   plage_de_puissance_injection %in% input$plage_puissance,
+                   date >= input$date_range[1] & date <= input$date_range[2],
+                   filiere_de_production == input$fliere) %>%
+            group_by(date,region,plage_de_puissance_injection) %>%
+            summarise(Total_energie = sum(total_energie_injectee_wh/nb_points_injection, na.rm = TRUE),Courbe_Moyenne1=sum(courbe_moyenne_n_1_wh, na.rm = TRUE),Courbe_Moyenne2=sum(courbe_moyenne_n_2_wh, na.rm = TRUE))
         }else{
           df_filtered <- df %>%
-            filter(Région %in% input$region,
-                   Plage.de.puissance.injection %in% input$plage_puissance,
-                   Date >= input$date_range[1] & Date <= input$date_range[2],
-                   Filière.de.production == "F0 : Total toutes filières") %>%
-            group_by(Date,Région,Plage.de.puissance.injection) %>%
-            summarise(Total_energie = sum(Total.énergie.injectée..Wh., na.rm = TRUE),Courbe.Moyenne1=sum(Courbe.Moyenne.n.1..Wh., na.rm = TRUE),Courbe.Moyenne2=sum(Courbe.Moyenne.n.2..Wh., na.rm = TRUE))
+            filter(region %in% input$region,
+                   plage_de_puissance_injection %in% input$plage_puissance,
+                   date >= input$date_range[1] & date <= input$date_range[2],
+                   filiere_de_production == "F0 : Total toutes filières") %>%
+            group_by(date,region,plage_de_puissance_injection) %>%
+            summarise(Total_energie = sum(total_energie_injectee_wh, na.rm = TRUE),Courbe_Moyenne1=sum(courbe_moyenne_n_1_wh, na.rm = TRUE),Courbe_Moyenne2=sum(courbe_moyenne_n_2_wh, na.rm = TRUE))
         }
       }
       return(df_filtered)
@@ -782,9 +977,9 @@ server <- function(input, output, session) {
     output$total_energie <- renderValueBox({
       data <- filtered_data()
       if (input$choix_pas == "demi_horaire") {
-        if(input$fliere == "F0 : Total toutes filières"){data%>% filter(Filière.de.production == "F0 : Total toutes filières")}
-        else{data%>% filter(Filière.de.production != "F0 : Total toutes filières")}
-        total_energie <- sum(data$Total.énergie.injectée..Wh., na.rm = TRUE)
+        if(input$fliere == "F0 : Total toutes filières"){data%>% filter(filiere_de_production == "F0 : Total toutes filières")}
+        else{data%>% filter(filiere_de_production != "F0 : Total toutes filières")}
+        total_energie <- sum(data$total_energie_injectee_wh, na.rm = TRUE)
         valueBox(format(total_energie, big.mark = ","), "Total Energie Injectée", icon = icon("bolt"), color = "light-blue") 
       } else {
         total_energie <- sum(data$Total_energie, na.rm = TRUE)
@@ -797,9 +992,9 @@ server <- function(input, output, session) {
       
       if (input$choix_pas == "demi_horaire") {
         
-        if(input$fliere == "F0 : Total toutes filières"){data%>% filter(Filière.de.production == "F0 : Total toutes filières")}       
-        else{data%>% filter(Filière.de.production != "F0 : Total toutes filières")}
-        puissance_moyenne <- mean(data$Total.énergie.injectée..Wh., na.rm = TRUE)
+        if(input$fliere == "F0 : Total toutes filières"){data%>% filter(filiere_de_production == "F0 : Total toutes filières")}       
+        else{data%>% filter(filiere_de_production != "F0 : Total toutes filières")}
+        puissance_moyenne <- mean(data$total_energie_injectee_wh, na.rm = TRUE)
         valueBox(format(puissance_moyenne, big.mark = ","), "Puissance Moyenne", icon = icon("tachometer-alt"), color = "green",
                  width = NULL)
       }else {
@@ -812,14 +1007,14 @@ server <- function(input, output, session) {
     output$puissance_max <- renderValueBox({
       data <- filtered_data()
       if (input$choix_pas == "demi_horaire") {
-        if(input$fliere == "F0 : Total toutes filières"){data%>% filter(Filière.de.production == "F0 : Total toutes filières")}
-        else{data%>% filter(Filière.de.production != "F0 : Total toutes filières")}
-        puissance_max <- max(data$Total.énergie.injectée..Wh. , na.rm = TRUE)
-        horodate_max <- data$Horodate_clean[which.max(data$Total.énergie.injectée..Wh.)]
+        if(input$fliere == "F0 : Total toutes filières"){data%>% filter(filiere_de_production == "F0 : Total toutes filières")}
+        else{data%>% filter(filiere_de_production != "F0 : Total toutes filières")}
+        puissance_max <- max(data$total_energie_injectee_wh , na.rm = TRUE)
+        horodate_max <- data$horodate_clean[which.max(data$total_energie_injectee_wh)]
         valueBox(format(puissance_max, big.mark = ","), paste("Puissance Max. à", horodate_max), icon = icon("chart-line"), color = "yellow")
       } else {
         puissance_max <- max(data$Total_energie, na.rm = TRUE)
-        horodate_max <- data$Date[which.max(data$Total_energie)]
+        horodate_max <- data$date[which.max(data$Total_energie)]
         valueBox(format(puissance_max, big.mark = ","), paste("Puissance Max. à", horodate_max), icon = icon("chart-line"), color = "yellow")
       }
     })
@@ -827,29 +1022,29 @@ server <- function(input, output, session) {
     output$energy_plot <- renderPlotly({
       data <- filtered_data()
       if (input$choix_pas == "demi_horaire") {
-        if(input$fliere == "F0 : Total toutes filières"){data%>% filter(Filière.de.production == "F0 : Total toutes filières")}       
-        else{data%>% filter(Filière.de.production != "F0 : Total toutes filières")}
+        if(input$fliere == "F0 : Total toutes filières"){data%>% filter(filiere_de_production == "F0 : Total toutes filières")}       
+        else{data%>% filter(filiere_de_production != "F0 : Total toutes filières")}
         
         fig <- plot_ly(data, 
-                       x = ~ as.POSIXct(paste(input$date, Heure), format = "%Y-%m-%d %H:%M:%S"),
-                       y = ~ Total.énergie.injectée..Wh./Nb.points.injection, 
-                       color = ~ paste(data$Plage.de.puissance.injection, data$Région, sep = "_"),
-                       type = 'scatter', mode = 'line', name = ~Région) %>%
+                       x = ~ as.POSIXct(paste(input$date, heure), format = "%Y-%m-%d %H:%M:%S"),
+                       y = ~ total_energie_injectee_wh/nb_points_injection, 
+                       color = ~ paste(data$plage_de_puissance_injection, data$region, sep = "_"),
+                       type = 'scatter', mode = 'line', name = ~region) %>%
           add_trace(
-            x = ~ as.POSIXct(paste(input$date, Heure), format = "%Y-%m-%d %H:%M:%S"),
-            y = ~ Courbe.Moyenne.n.1..Wh.,
+            x = ~ as.POSIXct(paste(input$date, heure), format = "%Y-%m-%d %H:%M:%S"),
+            y = ~ courbe_moyenne_n_1_wh,
             type = 'scatter',
             mode = 'line',
             name = 'Courbe Moyenne n.1',
-            line = list(dash = 'dot', color = ~ paste(data$Plage.de.puissance.injection, data$Région, sep = "_"))
+            line = list(dash = 'dot', color = ~ paste(data$plage_de_puissance_injection, data$region, sep = "_"))
           ) %>%
           add_trace(
-            x = ~ as.POSIXct(paste(input$date, Heure), format = "%Y-%m-%d %H:%M:%S"),
-            y = ~ Courbe.Moyenne.n.2..Wh.,
+            x = ~ as.POSIXct(paste(input$date, heure), format = "%Y-%m-%d %H:%M:%S"),
+            y = ~ courbe_moyenne_n_2_wh,
             type = 'scatter',
             mode = 'line',
             name = 'Courbe Moyenne n.2',
-            line = list(dash = 'dash', color = ~ paste(data$Plage.de.puissance.injection, data$Région, sep = "_"))
+            line = list(dash = 'dash', color = ~ paste(data$plage_de_puissance_injection, data$region, sep = "_"))
           ) %>%
           layout(
             title = "Totale d'énergie injéctées",
@@ -858,29 +1053,29 @@ server <- function(input, output, session) {
           )
       }else {
         fig <- plot_ly(data, 
-                       x = ~ data$Date,
+                       x = ~ data$date,
                        y = ~ Total_energie, 
-                       color = ~ paste(data$Plage.de.puissance.injection, data$Région, sep = "_"),
-                       type = 'scatter', mode = 'line', name = ~Région) %>%
+                       color = ~ paste(data$plage_de_puissance_injection, data$region, sep = "_"),
+                       type = 'scatter', mode = 'line', name = ~region) %>%
           add_trace(
-            x = ~ data$Date,
-            y = ~ Courbe.Moyenne1,
+            x = ~ data$date,
+            y = ~ Courbe_Moyenne1,
             type = 'scatter',
             mode = 'line',
             name = 'Courbe Moyenne n.1',
-            line = list(dash = 'dot', color = ~ paste(data$Plage.de.puissance.injection, data$Région, sep = "_"))
+            line = list(dash = 'dot', color = ~ paste(data$plage_de_puissance_injection, data$region, sep = "_"))
           ) %>%
           add_trace(
-            x = ~ data$Date,
-            y = ~ Courbe.Moyenne2,
+            x = ~ data$date,
+            y = ~ Courbe_Moyenne2,
             type = 'scatter',
             mode = 'line',
             name = 'Courbe Moyenne n.2',
-            line = list(dash = 'dash', color = ~ paste(data$Plage.de.puissance.injection, data$Région, sep = "_"))
+            line = list(dash = 'dash', color = ~ paste(data$plage_de_puissance_injection, data$region, sep = "_"))
           ) %>%
           layout(
             title = "Totale d'énergie injéctées",
-            xaxis = list(title = "Date"),
+            xaxis = list(title = "date"),
             yaxis = list(title = "Production")
           )
       }
@@ -894,14 +1089,14 @@ server <- function(input, output, session) {
         fin <- as_hms(paste0(input$heure_fin,":00"))
         
         df_aggregated <- df %>%
-          filter(Plage.de.puissance.injection %in% input$plage_puissance,
-                 Date %in% input$date,
-                 Filière.de.production == input$fliere,
-                 Heure >= debut & Heure <= fin)%>%
-          group_by(Code.région,Nb.points.injection,Filière.de.production) %>%
-          summarise(Total_energie = sum(as.numeric(Total.énergie.injectée..Wh.), na.rm = TRUE))
+          filter(plage_de_puissance_injection %in% input$plage_puissance,
+                 date %in% input$date,
+                 filiere_de_production == input$fliere,
+                 heure >= debut & heure <= fin)%>%
+          group_by(code_region,nb_points_injection,filiere_de_production) %>%
+          summarise(Total_energie = sum(as.numeric(total_energie_injectee_wh), na.rm = TRUE))
         regions_geo <- regions_geo %>%
-          left_join(df_aggregated, by = c("code" = "Code.région"))
+          left_join(df_aggregated, by = c("code" = "code_region"))
         
         leaflet(data = regions_geo) %>%
           addTiles() %>%
@@ -912,7 +1107,7 @@ server <- function(input, output, session) {
             color = "white",
             dashArray = "3",
             fillOpacity = 0.7,
-            popup = ~paste("Région: ", nom, ",", "\nTotal énergie injectée: ", Total_energie,"\nNb de points d'injection : ",unique(Nb.points.injection)),
+            popup = ~paste("region: ", nom, ",", "\nTotal énergie injectée: ", Total_energie,"\nNb de points d'injection : ",unique(nb_points_injection)),
             label = ~paste(nom, ",", "Total énergie injectée: ", round(Total_energie/10^6,3),"Mkh"),
             labelOptions = labelOptions(
               direction = "center",  
@@ -928,13 +1123,13 @@ server <- function(input, output, session) {
           )
       }else {
         df_aggregated <- df %>%
-          filter(Plage.de.puissance.injection %in% input$plage_puissance,
-                 Filière.de.production == input$fliere,
-                 Date >= input$date_range[1] & Date <= input$date_range[2])%>%
-          group_by(Code.région) %>%
-          summarise(Total_energie = sum(as.numeric(Total.énergie.injectée..Wh.), na.rm = TRUE))
+          filter(plage_de_puissance_injection %in% input$plage_puissance,
+                 filiere_de_production == input$fliere,
+                 date >= input$date_range[1] & date <= input$date_range[2])%>%
+          group_by(code_region) %>%
+          summarise(Total_energie = sum(as.numeric(total_energie_injectee_wh), na.rm = TRUE))
         regions_geo <- regions_geo %>%
-          left_join(df_aggregated, by = c("code" = "Code.région"))
+          left_join(df_aggregated, by = c("code" = "code_region"))
         
         leaflet(data = regions_geo) %>%
           addTiles() %>%
@@ -945,7 +1140,7 @@ server <- function(input, output, session) {
             color = "white",
             dashArray = "3",
             fillOpacity = 0.7,
-            popup = ~paste("Région: ", nom, ",", "\nTotal énergie injectée: ", Total_energie),
+            popup = ~paste("region: ", nom, ",", "\nTotal énergie injectée: ", Total_energie),
             label = ~paste(nom, ",", "Total énergie injectée: ", round(Total_energie/10^6,3),"Mkh"),  
             labelOptions = labelOptions(
               direction = "center",  
@@ -976,3 +1171,4 @@ server <- function(input, output, session) {
 
 # Lancer l'application
 shinyApp(ui, server)
+
