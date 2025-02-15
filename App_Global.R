@@ -18,9 +18,9 @@ library(janitor)
 
 
 # chargement des données:
-conso_sup36= fread("/Users/gertrudenyamassoule/Projet-Rshiny/conso-sup36-region.csv")
-conso= fread("/Users/gertrudenyamassoule/Projet-Rshiny/conso-inf36-region.csv")
-df<- readRDS("/Users/gertrudenyamassoule/Projet-Rshiny/Prod_enrgies.rds")
+conso_sup36= fread("conso-sup36-region.csv")
+conso= fread("conso-inf36-region.csv")
+df<- readRDS("Prod_enrgies.rds")
 
 # Nettoyage des noms de colonnes
 conso <- conso %>% clean_names()
