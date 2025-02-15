@@ -52,7 +52,7 @@ conso_sup36 <- conso_sup36[complete.cases(conso_sup36),] %>%
 
 
 # Charger les frontières des regions françaises depuis le fichier GeoJSON téléchargé:
-regions_geo <- st_read("/Users/gertrudenyamassoule/Projet-Rshiny/regions.geojson")  
+regions_geo <- st_read("regions.geojson")  
 regions_geo$code<-as.numeric(regions_geo$code)
 
 # Fonction pour générer les courbes de consommation et production:
@@ -800,6 +800,7 @@ server <- function(input, output, session) {
       }
     })
     
+    
     observeEvent(input$profil, {
       
       # Filtrer les valeurs de la plage de puissance selon le profil sélectionné
@@ -810,6 +811,20 @@ server <- function(input, output, session) {
       
       # Mettre à jour les choix dans le selectInput de la plage de puissance
       updateSelectInput(session, "plage_puissance", 
+                        choices = filtered_plage,
+                        selected = filtered_plage[1])
+    })
+    
+    observeEvent(input$profil, {
+      
+      # Filtrer les valeurs de la plage de puissance selon le profil sélectionné
+      filtered_plage <- conso %>%
+        filter(profil == input$profil) %>%
+        pull(plage_de_puissance_souscrite) %>%
+        unique()
+      
+      # Mettre à jour les choix dans le selectInput de la plage de puissance
+      updateSelectInput(session, "plage_puissance",
                         choices = filtered_plage,
                         selected = filtered_plage[1])
     })
