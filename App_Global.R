@@ -800,19 +800,20 @@ server <- function(input, output, session) {
       }
     })
     
-    #observeEvent(input$profil, {
+    observeEvent(input$profil, {
       
       # Filtrer les valeurs de la plage de puissance selon le profil sélectionné
-      #filtered_plage <- conso %>%
-        #filter(profil == input$profil) %>%
-        #pull(plage_de_puissance_souscrite) %>%
-        #unique()
+      filtered_plage <- conso %>%
+        filter(profil == input$profil) %>%
+        pull(plage_de_puissance_souscrite) %>%
+        unique()
       
       # Mettre à jour les choix dans le selectInput de la plage de puissance
-      #updateSelectInput(session, "plage_puissance", 
-       #                 choices = filtered_plage,
-        #                selected = filtered_plage[1])
-    #})
+      updateSelectInput(session, "plage_puissance", 
+                        choices = filtered_plage,
+                        selected = filtered_plage[1])
+    })
+    
     # Filtrage des données en fonction des choix de l'utilisateur:
     filtered_data <- reactive({
       if (input$choix_pas == "demi_horaire") {
